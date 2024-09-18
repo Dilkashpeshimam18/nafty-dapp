@@ -22,6 +22,14 @@ ii) NaftySocial: Used to mint nft, like, comment get all nfts data.
 
 iii) NaftyUser: Used to user management.
 
+Smart contracts & their integration to frontend is ready.
+
+https://github.com/Dilkashpeshimam18/nafty-dapp/tree/main/contract
+
+https://github.com/Dilkashpeshimam18/nafty-dapp/blob/main/src/context/index.js
+
+UI of the application is under development.🔥
+
 **Tool & Technologies Used :  React, Solidity, Web3.js, ERC-721, Ethereum, Remix IDE & Tailwind CSS.**
 
 Feel free to give a star to this repo, if you like this application.
