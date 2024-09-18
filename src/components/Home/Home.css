@@ -7,6 +7,8 @@
   .userAddress {
     text-transform: uppercase;
     color: #1da1f2;
+    display: flex;
+    justify-content: center;
   }
   
   .spinner {

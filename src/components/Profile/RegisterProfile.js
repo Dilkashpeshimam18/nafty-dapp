@@ -38,7 +38,7 @@ const Register = ({useraddress}) => {
 
 
   return (
-    <div style={{ backgroundColor: "white" }} className="editProfile">
+    <div style={{ backgroundColor: "white", borderRadius:'15px' }} className="editProfile">
    
         <>
         <div className="editProfile__container2">
