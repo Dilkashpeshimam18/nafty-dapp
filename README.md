@@ -15,8 +15,19 @@ Features:
 8) User can follow & unfollow user & can also view their followings & followers.
 
 There are 3 main contract:
+
 i) Nafty: It's the main contract used to manage listing, unlisting & buying of nfts.
+
 ii) NaftySocial: Used to mint nft, like, comment get all nfts data.
+
 iii) NaftyUser: Used to user management.
 
 **Tool & Technologies Used :  React, Solidity, Web3.js, ERC-721, Ethereum, Remix IDE & Tailwind CSS.**
+
+Feel free to give a star to this repo, if you like this application.
+
+And if you want to build something similar or more into blockchain space, do connect with me over a chat on linkedin or gmail.
+
+<a href="https://linkedin.com/in/dilkash-peshimam-80730b1a8" target="blank"><img align="center" src="https://cdn-icons-png.flaticon.com/512/174/174857.png" alt="dilkash-peshimam-80730b1a8" height="40" width="40" /></a>
+<a href="mailto:dilkashpeshimam@gmail.com" target="blank"><img align="center" src="https://img.icons8.com/?size=100&id=P7UIlhbpWzZm&format=png&color=000000"  height="40" width="40" /></a>
+
