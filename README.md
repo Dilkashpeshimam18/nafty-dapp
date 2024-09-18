@@ -18,11 +18,11 @@ There are 3 main contract:
 
 i) Nafty: It's the main contract used to manage listing, unlisting & buying of nfts.
 
-ii) NaftySocial: Used to mint nft, like, comment get all nfts data.
+ii) NaftySocial: Used to mint nft, like, unlike, comment & get all nfts data.
 
-iii) NaftyUser: Used to user management.
+iii) NaftyUser: Used for user management.
 
-Smart contracts & their integration to frontend is ready.
+Smart contracts & their integration to frontend using web3.js is completed.
 
 https://github.com/Dilkashpeshimam18/nafty-dapp/tree/main/contract
 
