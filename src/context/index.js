@@ -86,6 +86,7 @@ export const StateContextProvider = ({ children }) => {
         try {
 
             const allNfts = await socialContract.methods.getAllNftPosts().call()
+            console.log("all nfts>>",allNfts)
             setAllPost(allNfts)
 
         } catch (err) {
@@ -180,18 +181,23 @@ export const StateContextProvider = ({ children }) => {
     }
 
     const checkProfile = async () => {
+        const accounts = await web3.eth.getAccounts()
 
-        const isProfile = await getProfile(account)
-        console.log(isProfile, 'user profile')
+        const isProfile = await getProfile(accounts[0])
+        console.log(isProfile, '<<<<user profile')
 
-        setIsProfileExists(isProfile)
+        if(isProfile.displayName !=''){
+            console.log('checking profile in check')
 
+            setIsProfileExists(true)
+        }
     }
-    const setProfile = async (name, bio, username, age, image) => {
+    const setProfile = async (name, bio, username, image) => {
         try {
             const accounts = await web3.eth.getAccounts()
 
-            await profileContract.methods.setProfile(name, bio, username, age, image).send({ from: accounts[0] })
+           const res= await profileContract.methods.setProfile(name, bio, username, image).send({ from: accounts[0] })
+           console.log(res)
 
 
         } catch (err) {
@@ -215,9 +221,17 @@ export const StateContextProvider = ({ children }) => {
             return;
         }
         try {
-            const userProfile = await profileContract.methods.getProfile(account).call()
+            const accounts = await web3.eth.getAccounts()
+
+            const userProfile = await profileContract.methods.getProfile(accounts[0]).call()
+            console.log('getting user profile>>>',userProfile)
             setUserData(userProfile)
-            return userProfile.displayName;
+            if(userProfile.displayName !=''){
+                console.log('checking profile in get')
+                setIsProfileExists(true)
+            }
+
+            return userProfile
         } catch (err) {
             console.log(err)
         }
@@ -246,11 +260,11 @@ export const StateContextProvider = ({ children }) => {
             console.log(err)
         }
     }
-    useEffect(() => {
-        if (contract && account) {
-            getAllNftPost()
-        }
-    }, [contract, account])
+    // useEffect(() => {
+    //     if (contract && account) {
+    //         getAllNftPost()
+    //     }
+    // }, [contract, account])
 
     return (
         <StateContext.Provider
@@ -287,7 +301,8 @@ export const StateContextProvider = ({ children }) => {
                 setProfile,
                 editProfile,
                 followUser,
-                unfollowUser
+                unfollowUser,
+                profileContract
             }}
         >
             {children}

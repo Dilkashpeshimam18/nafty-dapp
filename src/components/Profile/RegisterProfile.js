@@ -1,20 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./Register.css";
 import Avatar from "@mui/material/Avatar";
-import { useSelector } from "react-redux";
+import { useStateContext } from "../../context";
+import { useNavigate } from 'react-router-dom';
 
 const Register = ({useraddress}) => {
   const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
   const [bio, setBio] = useState("");
-
-  const [email, setEmail] = useState("");
-  const allInputs = { imgUrl: "" };
+ const [username,setUsername]=useState('')
   const [imageAsFile, setImageAsFile] = useState("");
-  const [imageAsUrl, setImageAsUrl] = useState(allInputs);
+ const inputRef = useRef(null);
+ const {setProfile}=useStateContext()
+ const navigate = useNavigate()
 
-  const inputRef = useRef(null);
- 
   const handleImageAsFile = (e) => {
     const image = e.target.files[0];
     setImageAsFile(image);
@@ -23,19 +21,30 @@ const Register = ({useraddress}) => {
   const handleName = (e) => {
     setName(e.target.value);
   };
-  const handleUrl = (e) => {
-    setUrl(e.target.value);
-  };
+
   const handleBio = (e) => {
     setBio(e.target.value);
   };
 
-  const handleEmail = (e) => {
-    setEmail(e.target.value);
-  };
+  const createProfile=async()=>{
+    try{
+      if(name.length !=0 && bio.length!=0 && username.length!=0 && imageAsFile){
+        const image=URL.createObjectURL(imageAsFile)
+        await setProfile(name,bio,username,image)
+        setName('')
+        setBio('')
+        setUsername('')
+        setImageAsFile('')
+        navigate('/')
+      }else{
+        alert("Please enter the remaining data")
+      }
+      
 
-
-
+    }catch(err){
+      console.log(err)
+    }
+  }
 
   return (
     <div style={{ backgroundColor: "white", borderRadius:'15px' }} className="editProfile">
@@ -54,7 +63,6 @@ const Register = ({useraddress}) => {
           onChange={handleImageAsFile}
           type="file"
           ref={inputRef}
-          style={{ display: "none" }}
         />
         <button
           onClick={() => {
@@ -77,8 +85,8 @@ const Register = ({useraddress}) => {
               </h4>
               <input
                 style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                value={name}
-                onChange={handleName}
+                value={username}
+                onChange={(e)=>setUsername(e.target.value)}
                 className="form__input"
                 required
               />
@@ -108,24 +116,11 @@ const Register = ({useraddress}) => {
                     required
                   />
                 </div>
-
-                <div className="form__content">
-                  <h4 style={{ color: "black" }} className="form__text">
-                    Email
-                  </h4>
-                  <input
-                    style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                    value={email}
-                    onChange={handleEmail}
-                    className="form__input"
-                    required
-                  />
-                </div>
-               
+                
               </form>
 
               <div className="form__verification">
-                <button className="editProfile__button">
+                <button onClick={createProfile} className="editProfile__button">
                    Create
                 </button>
               </div>
