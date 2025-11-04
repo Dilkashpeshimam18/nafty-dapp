@@ -1,141 +1,95 @@
-import React, { useState, useEffect, useRef } from "react";
-import "./Register.css";
-import Avatar from "@mui/material/Avatar";
-import { useSelector } from "react-redux";
+import { useState,useEffect } from 'react';
+import { X } from 'lucide-react';
+import { useStateContext } from '../../context';
 
-const EditProfile = ({useraddress}) => {
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
+const EditProfileModal = ({ isOpen, onClose, userData }) => {
+  const { editProfile } = useStateContext();
+
+  const [displayName, setDisplayName] = useState("");
+  const [userName, setUserName] = useState("");
   const [bio, setBio] = useState("");
+  const [image, setImage] = useState("");
+    const [loading, setLoading] = useState(false); 
 
-  const [email, setEmail] = useState("");
-  const allInputs = { imgUrl: "" };
-  const [imageAsFile, setImageAsFile] = useState("");
-  const [imageAsUrl, setImageAsUrl] = useState(allInputs);
 
-  const inputRef = useRef(null);
- 
-  const handleImageAsFile = (e) => {
-    const image = e.target.files[0];
-    setImageAsFile(image);
+  useEffect(() => {
+    if (isOpen && userData) {
+      setDisplayName(userData.displayName || "");
+      setUserName(userData.userName || "");
+      setBio(userData.bio || "");
+      setImage(userData.image || "");
+    }
+  }, [isOpen, userData]);
+  const handleSave = async () => {
+    try {
+            setLoading(true); // start loading
+
+      await editProfile(displayName, userName, bio, image);
+      onClose();
+    } catch (err) {
+      console.error('Error updating profile:', err);
+    } finally {
+      setLoading(false); // stop loading
+    }
   };
 
-  const handleName = (e) => {
-    setName(e.target.value);
-  };
-  const handleUrl = (e) => {
-    setUrl(e.target.value);
-  };
-  const handleBio = (e) => {
-    setBio(e.target.value);
-  };
-
-  const handleEmail = (e) => {
-    setEmail(e.target.value);
-  };
-
-
-
+  if (!isOpen) return null;
 
   return (
-    <div style={{ backgroundColor: "white" }} className="editProfile">
-   
-        <>
-        <div className="editProfile__container2">
-        <Avatar
-          alt="image tag"
-          src={imageAsFile ? URL.createObjectURL(imageAsFile) : null}
-          className="avatar__img"
-          sx={{ width: 250, height: 250 }}
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="bg-gray-900 w-[400px] rounded-2xl p-6 relative">
+        {/* Close Button */}
+        <button onClick={onClose} className="absolute top-3 right-3 text-gray-400 hover:text-white">
+          <X size={20} />
+        </button>
+
+        <h2 className="text-lg font-bold mb-4 text-white">Edit Profile</h2>
+
+        {/* Display Name */}
+        <input
+          type="text"
+          placeholder="Display Name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-gray-800 text-gray-200 outline-none"
         />
 
+        {/* Username */}
         <input
-          className="img__input"
-          onChange={handleImageAsFile}
-          type="file"
-          ref={inputRef}
-          style={{ display: "none" }}
+          type="text"
+          placeholder="Username"
+          value={userName}
+          onChange={(e) => setUserName(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-gray-800 text-gray-200 outline-none"
         />
+
+        {/* Bio */}
+        <textarea
+          placeholder="Bio"
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-gray-800 text-gray-200 outline-none resize-none"
+        />
+
+        {/* Image URL */}
+        <input
+          type="text"
+          placeholder="Profile Image URL"
+          value={image}
+          onChange={(e) => setImage(e.target.value)}
+          className="w-full mb-3 px-3 py-2 rounded-lg bg-gray-800 text-gray-200 outline-none"
+        />
+
+        {/* Save Button */}
         <button
-          onClick={() => {
-            inputRef.current.click();
-          }}
-          className="profile__button"
+          onClick={handleSave}
+          className="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg text-white font-semibold"
         >
-          Add profile picture
+          {loading ? "Saving..." : "Save Changes"}
         </button>
       </div>
-          <div className="editProfile__container1">
-            <h1 style={{ color: "black" }} className="editProfile__text">
-              Edit Profile
-            </h1>
-            <div className="form">
-              <form>
-              <div className="form__content">
-              <h4 style={{ color: "black" }} className="form__text">
-                Username
-              </h4>
-              <input
-                style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                value={name}
-                onChange={handleName}
-                className="form__input"
-                required
-              />
-            </div>
-                <div className="form__content">
-                  <h4 style={{ color: "black" }} className="form__text">
-                    Display Name
-                  </h4>
-                  <input
-                    style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                    value={name}
-                    onChange={handleName}
-                    className="form__input"
-                    required
-                  />
-                </div>
-
-                <div className="form__content">
-                  <h4 style={{ color: "black" }} className="form__text">
-                    Bio
-                  </h4>
-                  <input
-                    style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                    value={bio}
-                    onChange={handleBio}
-                    className="form__input"
-                    required
-                  />
-                </div>
-
-                <div className="form__content">
-                  <h4 style={{ color: "black" }} className="form__text">
-                    Email
-                  </h4>
-                  <input
-                    style={{ backgroundColor: "#e6e6e6", color: "black" }}
-                    value={email}
-                    onChange={handleEmail}
-                    className="form__input"
-                    required
-                  />
-                </div>
-               
-              </form>
-
-              <div className="form__verification">
-                <button className="editProfile__button">
-                  Edit
-                </button>
-              </div>
-            </div>
-          </div>
-      
-        </>
-
     </div>
   );
 };
 
-export default EditProfile;
+export default EditProfileModal;
