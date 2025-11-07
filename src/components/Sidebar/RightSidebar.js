@@ -89,7 +89,7 @@ import { Plus } from "lucide-react";
 // }
 export default function RightSidebar() {
   return (
-    <aside className="hidden lg:block w-80 bg-gray-900 p-4 space-y-6 overflow-y-auto scrollbar-hide">
+    <aside className="w-80 bg-gray-900 p-4 space-y-6 overflow-y-auto scrollbar-hide h-full">
       {/* Suggested Groups */}
       <div className="bg-purple-800/40 p-4 rounded-2xl">
         <div className="flex justify-between items-center mb-3">
@@ -148,7 +148,7 @@ export default function RightSidebar() {
           <button className="text-[10px] text-gray-300 hover:text-white">See All</button>
         </div>
         <div className="space-y-3">
-          {[5, 6].map((i) => (
+          {[5, 6, 7, 8].map((i) => (
             <div
               key={i}
               className="flex items-center justify-between bg-purple-900/40 p-2 rounded-xl"
@@ -160,13 +160,34 @@ export default function RightSidebar() {
                   className="w-10 h-10 rounded-lg"
                 />
                 <div>
-                  <p className="text-[13px] font-medium">Jackson Britsons</p>
-                  <p className="text-[10px] text-gray-400">Creator & Editor</p>
+                  <p className="text-[13px] font-medium">Creator {i}</p>
+                  <p className="text-[10px] text-gray-400">NFT Artist</p>
                 </div>
               </div>
               <button className="bg-purple-700 hover:bg-purple-600 p-2 rounded-lg">
                 <Plus size={16} />
               </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Trending NFTs */}
+      <div className="bg-purple-800/40 p-4 rounded-2xl">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-semibold text-sm">Trending NFTs</h3>
+          <button className="text-[10px] text-gray-300 hover:text-white">View More</button>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-purple-900/40 p-2 rounded-xl">
+              <img
+                src={`https://picsum.photos/300/200?random=${i}`}
+                alt="nft"
+                className="rounded-lg w-full h-32 object-cover mb-2"
+              />
+              <p className="text-[13px] font-medium">NFT Collection #{i}</p>
+              <p className="text-[10px] text-gray-400">Floor: 0.5 ETH</p>
             </div>
           ))}
         </div>

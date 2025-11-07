@@ -81,7 +81,7 @@ export default function LandingPage() {
               <div className="w-10 h-10 rounded-[10px] bg-gradient-to-br from-[#6645eb] to-[#d445eb] flex items-center justify-center">
                 <Sparkles className="w-5 h-5" />
               </div>
-              <span className="text-[22px] font-medium tracking-[-0.02em]">Nafty</span>
+              <span style={{fontFamily:'monospace'}} className="text-[22px] font-medium tracking-[-0.02em]">NAFTY</span>
             </div>
 
             {/* Desktop Menu */}
