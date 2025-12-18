@@ -26,14 +26,18 @@ export const StateContextProvider = ({ children }) => {
   const naftySocialAddress = '0x64DE3f5347897Ecd175e30Ff6E6a4EefaC6f2694';
 
   let web3;
+  let contract;
+  let profileContract;
+  let socialContract;
+
   if (window.ethereum) {
     web3 = new Web3(window.ethereum);
+    contract = new web3.eth.Contract(naftyAbi, naftyAddress);
+    profileContract = new web3.eth.Contract(profileAbi, naftyUserAddress);
+    socialContract = new web3.eth.Contract(socialAbi, naftySocialAddress);
   } else {
-    console.error('No Ethereum provider detected. Please install MetaMask.');
+    console.warn('No Ethereum provider detected. MetaMask is required to use this app.');
   }
-  const contract = new web3.eth.Contract(naftyAbi, naftyAddress);
-  const profileContract = new web3.eth.Contract(profileAbi, naftyUserAddress);
-  const socialContract = new web3.eth.Contract(socialAbi, naftySocialAddress);
   const [selectedUser, setSelectedUser] = useState(null);
 
   const handleOpenProfile = async (wallet) => {
@@ -100,6 +104,10 @@ export const StateContextProvider = ({ children }) => {
   };
 
   const switchToSepolia = async () => {
+    if (!window.ethereum) {
+      console.error('No Ethereum provider detected');
+      return;
+    }
     try {
       // Sepolia Chain ID = 11155111 (hex: 0xaa36a7)
       await window.ethereum.request({
@@ -135,6 +143,10 @@ export const StateContextProvider = ({ children }) => {
     }
   };
   const ensureSepoliaNetwork = async () => {
+    if (!window.ethereum) {
+      console.error('No Ethereum provider detected');
+      return;
+    }
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     if (chainId !== '0xaa36a7') {
       await switchToSepolia();
