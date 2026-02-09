@@ -4,6 +4,7 @@ import naftyAbi from '../abis/nafty.json';
 import profileAbi from '../abis/naftyUser.json';
 import socialAbi from '../abis/naftySocial.json';
 import CreateProfile from '../components/Profile/CreateProfile';
+import MetaMaskModal from '../components/Modal/MetaMaskModal';
 
 const StateContext = createContext();
 
@@ -20,23 +21,36 @@ export const StateContextProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [post, setPost] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState(false);
+  const [showMetaMaskModal, setShowMetaMaskModal] = useState(false);
 
   const naftyAddress = '0xE3bAF9963C7985B3AF72d5Ef27bE7F26f78082Bc';
   const naftyUserAddress = '0x0674A4E225fB87605330610D029e679952333261';
   const naftySocialAddress = '0x64DE3f5347897Ecd175e30Ff6E6a4EefaC6f2694';
 
-  let web3;
-  let contract;
-  let profileContract;
-  let socialContract;
+  let web3 = null;
+  let contract = null;
+  let profileContract = null;
+  let socialContract = null;
 
-  if (window.ethereum) {
+  // Check for MetaMask on initial load
+  useEffect(() => {
+    const checkMetaMask = () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        setIsMetaMaskInstalled(true);
+      } else {
+        setIsMetaMaskInstalled(false);
+      }
+    };
+    checkMetaMask();
+  }, []);
+
+  // Initialize web3 and contracts only if ethereum is available
+  if (typeof window !== 'undefined' && window.ethereum) {
     web3 = new Web3(window.ethereum);
     contract = new web3.eth.Contract(naftyAbi, naftyAddress);
     profileContract = new web3.eth.Contract(profileAbi, naftyUserAddress);
     socialContract = new web3.eth.Contract(socialAbi, naftySocialAddress);
-  } else {
-    console.warn('No Ethereum provider detected. MetaMask is required to use this app.');
   }
   const [selectedUser, setSelectedUser] = useState(null);
 
@@ -45,13 +59,29 @@ export const StateContextProvider = ({ children }) => {
       console.error('Web3 or contract not initialized.');
       return;
     }
+
+    if (!wallet) {
+      console.error('No wallet address provided');
+      return;
+    }
+
     try {
+      const onSepolia = await isOnSepolia();
+      if (!onSepolia) {
+        const switched = await ensureSepoliaNetwork();
+        if (!switched) {
+          console.warn('Please switch to Sepolia network.');
+          return;
+        }
+      }
+
       const accounts = await web3.eth.getAccounts();
       const activeAccount = account || accounts[0];
 
       const profile = await profileContract.methods.getProfile(wallet).call();
-      let userProfile;
-      if (profile.displayName !== '' || profile[0] !== '') {
+      let userProfile = null;
+
+      if (profile && (profile.displayName !== '' || profile[0] !== '')) {
         const cleanProfile = {
           displayName: profile.displayName || profile[0],
           userName: profile.userName || profile[1],
@@ -60,14 +90,15 @@ export const StateContextProvider = ({ children }) => {
           follower: Number(profile.follower || profile[4]),
           following: Number(profile.following || profile[5]),
           postLength: Number(profile.postLength || profile[6]),
-          wallet: activeAccount,
+          wallet: wallet,
         };
 
         userProfile = cleanProfile;
       } else {
-        console.warn('Profile not found for:', activeAccount);
+        console.warn('Profile not found for:', wallet);
       }
-      const posts = await getAllUserNft(wallet); // fetch user’s NFTs
+
+      const posts = await getAllUserNft(wallet); // fetch user's NFTs
       setSelectedUser({
         ...userProfile,
         wallet,
@@ -75,12 +106,16 @@ export const StateContextProvider = ({ children }) => {
       });
     } catch (err) {
       console.error('Error loading user profile:', err);
+      // Suppress detailed error logging for network/ABI issues
+      if (!err.message?.includes('AbiError')) {
+        console.error('Make sure you are connected to Sepolia testnet and the contracts are deployed.');
+      }
     }
   };
 
   const connectWallet = async () => {
     try {
-      if (window.ethereum) {
+      if (typeof window !== 'undefined' && window.ethereum) {
         const accounts = await window.ethereum
           .request({
             method: 'eth_requestAccounts',
@@ -92,11 +127,12 @@ export const StateContextProvider = ({ children }) => {
               console.log(err);
             }
           });
-        setAccount(accounts[0]);
-        // getAllNftPost()
-        // await checkProfile();
+        if (accounts && accounts.length > 0) {
+          setAccount(accounts[0]);
+        }
       } else {
-        console.log('No web3 provider  detected');
+        // MetaMask is not installed, show modal
+        setShowMetaMaskModal(true);
       }
     } catch (err) {
       console.log(err);
@@ -142,14 +178,35 @@ export const StateContextProvider = ({ children }) => {
       }
     }
   };
+  const isOnSepolia = async () => {
+    if (!window.ethereum) return false;
+    try {
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      return chainId === '0xaa36a7';
+    } catch {
+      return false;
+    }
+  };
+
   const ensureSepoliaNetwork = async () => {
     if (!window.ethereum) {
       console.error('No Ethereum provider detected');
-      return;
+      return false;
     }
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== '0xaa36a7') {
-      await switchToSepolia();
+    try {
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      if (chainId !== '0xaa36a7') {
+        await switchToSepolia();
+        // Wait a bit for the network switch to complete
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Verify the switch was successful
+        const newChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        return newChainId === '0xaa36a7';
+      }
+      return true;
+    } catch (err) {
+      console.error('Error ensuring Sepolia network:', err);
+      return false;
     }
   };
   const uploadToIPFS = async (file) => {
@@ -189,11 +246,20 @@ export const StateContextProvider = ({ children }) => {
 
   const createNftPost = async (e) => {
     e.preventDefault();
+    if (!web3 || !socialContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       if (nftName.length > 0 && nftDesc.length > 0) {
         setLoading(true);
 
-        await ensureSepoliaNetwork();
+        const onCorrectNetwork = await ensureSepoliaNetwork();
+        if (!onCorrectNetwork) {
+          alert('Please switch to Sepolia network to create posts.');
+          setLoading(false);
+          return;
+        }
         const accounts = await web3.eth.getAccounts();
         const dummyMeta = 'https://my-json-server.typicode.com/demo/nft/1';
         let imageUrl = '';
@@ -230,55 +296,103 @@ export const StateContextProvider = ({ children }) => {
     }
   };
   const getAllNftPost = async () => {
+    if (!web3 || !socialContract || !profileContract) {
+      console.warn('Web3 or contracts not initialized.');
+      return;
+    }
+
     try {
+      // Check if on Sepolia before making any calls
+      const onSepolia = await isOnSepolia();
+      if (!onSepolia) {
+        const switched = await ensureSepoliaNetwork();
+        if (!switched) {
+          console.warn('Please switch to Sepolia network to view posts.');
+          return;
+        }
+      }
+
       const accounts = await web3.eth.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        console.warn('No account connected');
+        return;
+      }
 
       const allNfts = await socialContract.methods.getAllNftPosts().call();
 
+      // Handle empty response
+      if (!allNfts || allNfts.length === 0) {
+        setAllPost([]);
+        return;
+      }
+
       const formatted = await Promise.all(
         allNfts.map(async (nft) => {
-          const profile = await getUserProfile(nft.owner); // fetch profile
-          const liked = await socialContract.methods.hasLiked(nft.tokenId, accounts[0]).call();
+          try {
+            const profile = await getUserProfile(nft.owner);
+            const liked = await socialContract.methods.hasLiked(nft.tokenId, accounts[0]).call();
 
-          return {
-            tokenId: Number(nft.tokenId ?? nft[0]?.toString()),
-            owner: nft.owner ?? nft[1],
-            nftName: nft.nftName ?? nft[2],
-            nftDesc: nft.nftDesc ?? nft[3],
-            price: Number(nft.price ?? nft[4]?.toString()),
-            isListed: nft.isListed ?? nft[5],
-            metadataURI: nft.metadataURI ?? nft[6],
-            timestamp: Number(nft.timestamp ?? nft[7]?.toString()),
-            likes: Number(nft.likes ?? nft[8]?.toString()),
-            profile,
-            liked,
-          };
+            return {
+              tokenId: Number(nft.tokenId ?? nft[0]?.toString()),
+              owner: nft.owner ?? nft[1],
+              nftName: nft.nftName ?? nft[2],
+              nftDesc: nft.nftDesc ?? nft[3],
+              price: Number(nft.price ?? nft[4]?.toString()),
+              isListed: nft.isListed ?? nft[5],
+              metadataURI: nft.metadataURI ?? nft[6],
+              timestamp: Number(nft.timestamp ?? nft[7]?.toString()),
+              likes: Number(nft.likes ?? nft[8]?.toString()),
+              profile,
+              liked,
+            };
+          } catch (mapErr) {
+            console.warn('Error processing NFT:', mapErr);
+            return null;
+          }
         })
       );
-      const sorted = formatted.sort((a, b) => b.timestamp - a.timestamp);
+
+      // Filter out any null entries from failed processing
+      const validPosts = formatted.filter((post) => post !== null);
+      const sorted = validPosts.sort((a, b) => b.timestamp - a.timestamp);
 
       setAllPost(sorted);
     } catch (err) {
       console.error('getAllNftPost error:', err);
+      // Don't show error in console for ABI errors when not on correct network
+      if (err.message?.includes('AbiError') || err.message?.includes('decoding error')) {
+        console.warn('Please ensure you are connected to Sepolia testnet.');
+      }
+      setAllPost([]);
     }
   };
 
   const getAllUserNft = async (userAddress) => {
+    if (!socialContract) {
+      console.warn('Social contract not initialized');
+      return [];
+    }
     try {
       const allNfts = await socialContract.methods.getAllPostsByUser(userAddress).call();
       setUserPosts(allNfts);
+      return allNfts;
     } catch (err) {
       console.log(err);
+      return [];
     }
   };
 
   const listNft = async (tokenId, price) => {
+    if (!web3 || !contract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       if (!price || parseFloat(price) <= 0) {
         alert('Price must be greater than 0 ETH');
         return;
       }
-      await ensureApproval(); 
+      await ensureApproval();
 
       const accounts = await web3.eth.getAccounts();
       await contract.methods.listNftForSale(tokenId, web3.utils.toWei(price, 'ether')).send({ from: accounts[0] });
@@ -288,6 +402,10 @@ export const StateContextProvider = ({ children }) => {
     }
   };
   const unlistNft = async (tokenId) => {
+    if (!web3 || !contract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
       await contract.methods.unlistNft(tokenId).send({ from: accounts[0] });
@@ -297,6 +415,10 @@ export const StateContextProvider = ({ children }) => {
     }
   };
   const buyNft = async (tokenId, price) => {
+    if (!web3 || !contract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
       const valueInWei = web3.utils.toWei(price.toString(), 'ether');
@@ -309,21 +431,28 @@ export const StateContextProvider = ({ children }) => {
       console.log(err);
     }
   };
-const ensureApproval = async () => {
-  const accounts = await web3.eth.getAccounts();
-  const isApproved = await socialContract.methods
-    .isApprovedForAll(accounts[0], contract.options.address)
-    .call();
+  const ensureApproval = async () => {
+    if (!web3 || !socialContract || !contract) {
+      console.warn('Web3 or contracts not initialized');
+      return;
+    }
+    const accounts = await web3.eth.getAccounts();
+    const isApproved = await socialContract.methods
+      .isApprovedForAll(accounts[0], contract.options.address)
+      .call();
 
-  if (!isApproved) {
-    await socialContract.methods
-      .setApprovalForAll(contract.options.address, true)
-      .send({ from: accounts[0] });
-    alert("Marketplace approved to transfer your NFTs");
-  }
-};
+    if (!isApproved) {
+      await socialContract.methods
+        .setApprovalForAll(contract.options.address, true)
+        .send({ from: accounts[0] });
+      alert('Marketplace approved to transfer your NFTs');
+    }
+  };
 
   const checkOwnership = async (owner) => {
+    if (!web3) {
+      return false;
+    }
     const accounts = await web3.eth.getAccounts();
     if (accounts[0]?.toLowerCase() === owner?.toLowerCase()) {
       return true;
@@ -333,6 +462,10 @@ const ensureApproval = async () => {
   };
 
   const likePost = async (tokenId) => {
+    if (!web3 || !socialContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       console.log(tokenId);
       const accounts = await web3.eth.getAccounts();
@@ -354,6 +487,10 @@ const ensureApproval = async () => {
     }
   };
   const unlikePost = async (tokenId) => {
+    if (!web3 || !socialContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
 
@@ -374,6 +511,10 @@ const ensureApproval = async () => {
     }
   };
   const fetchPostDetails = async (owner, tokenId) => {
+    if (!web3 || !socialContract) {
+      console.warn('Web3 or social contract not initialized');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
 
@@ -401,6 +542,10 @@ const ensureApproval = async () => {
   };
 
   const commentOnNft = async (tokenId, comment) => {
+    if (!web3 || !socialContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
 
@@ -410,6 +555,10 @@ const ensureApproval = async () => {
     }
   };
   const getAllNftComments = async (tokenId) => {
+    if (!socialContract) {
+      console.warn('Social contract not initialized');
+      return;
+    }
     try {
       const allComments = await socialContract.methods.getComments(tokenId).call();
 
@@ -434,10 +583,13 @@ const ensureApproval = async () => {
   }
 
   const checkProfile = async () => {
+    if (!web3) {
+      setIsProfileExists(false);
+      return false;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
       const profile = await getProfile(accounts[0]);
-
 
       // if contract returns `undefined` or an empty profile
       if (!profile || !profile.displayName || profile.displayName === '') {
@@ -455,8 +607,16 @@ const ensureApproval = async () => {
   };
 
   const setProfile = async (name, bio, username, image) => {
+    if (!web3 || !profileContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
-      await ensureSepoliaNetwork();
+      const onCorrectNetwork = await ensureSepoliaNetwork();
+      if (!onCorrectNetwork) {
+        alert('Please switch to Sepolia network.');
+        return;
+      }
 
       const accounts = await web3.eth.getAccounts();
 
@@ -466,7 +626,17 @@ const ensureApproval = async () => {
     }
   };
   const editProfile = async (name, username, bio, image) => {
+    if (!web3 || !profileContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
+      const onCorrectNetwork = await ensureSepoliaNetwork();
+      if (!onCorrectNetwork) {
+        alert('Please switch to Sepolia network.');
+        return;
+      }
+
       const accounts = await web3.eth.getAccounts();
 
       const res = await profileContract.methods.editProfile(name, username, bio, image).send({ from: accounts[0] });
@@ -478,12 +648,26 @@ const ensureApproval = async () => {
   const getProfile = async (account) => {
     if (!web3 || !contract || !profileContract) {
       console.error('Web3 or contract not initialized.');
-      return;
+      return null;
     }
 
     try {
+      const onSepolia = await isOnSepolia();
+      if (!onSepolia) {
+        const switched = await ensureSepoliaNetwork();
+        if (!switched) {
+          console.warn('Please switch to Sepolia network.');
+          return null;
+        }
+      }
+
       const accounts = await web3.eth.getAccounts();
       const activeAccount = account || accounts[0];
+
+      if (!activeAccount) {
+        console.warn('No account provided');
+        return null;
+      }
 
       const profile = await profileContract.methods.getProfile(activeAccount).call();
 
@@ -507,21 +691,43 @@ const ensureApproval = async () => {
       }
     } catch (err) {
       console.error('Error fetching profile:', err);
+      console.error('Make sure you are connected to Sepolia testnet and the profile contract is deployed.');
       return null;
     }
   };
 
   const getUserProfile = async (address) => {
+    if (!profileContract) {
+      console.warn('Profile contract not initialized');
+      return null;
+    }
+
+    if (!address) {
+      console.warn('No address provided to getUserProfile');
+      return null;
+    }
+
     try {
       const profile = await profileContract.methods.getProfile(address).call();
-      return profile; // { displayName, username, bio, image }
+
+      // Check if profile has valid data
+      if (profile && (profile.displayName || profile[0])) {
+        return profile;
+      }
+
+      // Return null if profile is empty (user hasn't created profile yet)
+      return null;
     } catch (err) {
-      console.error('getUserProfile error:', err);
+      console.error('getUserProfile error for address:', address, err);
       return null;
     }
   };
 
   const followUser = async (userAddress) => {
+    if (!web3 || !profileContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
 
@@ -532,6 +738,10 @@ const ensureApproval = async () => {
   };
 
   const unfollowUser = async (userAddress) => {
+    if (!web3 || !profileContract) {
+      alert('Please connect your wallet first.');
+      return;
+    }
     try {
       const accounts = await web3.eth.getAccounts();
 
@@ -541,7 +751,9 @@ const ensureApproval = async () => {
     }
   };
   useEffect(() => {
-    getAllNftPost();
+    if (account && web3 && socialContract && profileContract) {
+      getAllNftPost();
+    }
   }, [account]);
 
   return (
@@ -591,9 +803,14 @@ const ensureApproval = async () => {
         setSelectedImage,
         handleOpenProfile,
         selectedUser,
+        isMetaMaskInstalled,
       }}
     >
       {children}
+      <MetaMaskModal
+        isOpen={showMetaMaskModal}
+        onClose={() => setShowMetaMaskModal(false)}
+      />
     </StateContext.Provider>
   );
 };
