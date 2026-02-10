@@ -23,27 +23,18 @@ export const StateContextProvider = ({ children }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState(false);
   const [showMetaMaskModal, setShowMetaMaskModal] = useState(false);
+  const [isOnCorrectNetwork, setIsOnCorrectNetwork] = useState(false);
+  const [networkChecked, setNetworkChecked] = useState(false);
 
   const naftyAddress = '0xE3bAF9963C7985B3AF72d5Ef27bE7F26f78082Bc';
   const naftyUserAddress = '0x0674A4E225fB87605330610D029e679952333261';
   const naftySocialAddress = '0x64DE3f5347897Ecd175e30Ff6E6a4EefaC6f2694';
+  const SEPOLIA_CHAIN_ID = '0xaa36a7';
 
   let web3 = null;
   let contract = null;
   let profileContract = null;
   let socialContract = null;
-
-  // Check for MetaMask on initial load
-  useEffect(() => {
-    const checkMetaMask = () => {
-      if (typeof window !== 'undefined' && window.ethereum) {
-        setIsMetaMaskInstalled(true);
-      } else {
-        setIsMetaMaskInstalled(false);
-      }
-    };
-    checkMetaMask();
-  }, []);
 
   // Initialize web3 and contracts only if ethereum is available
   if (typeof window !== 'undefined' && window.ethereum) {
@@ -52,11 +43,60 @@ export const StateContextProvider = ({ children }) => {
     profileContract = new web3.eth.Contract(profileAbi, naftyUserAddress);
     socialContract = new web3.eth.Contract(socialAbi, naftySocialAddress);
   }
+
+  // Check for MetaMask and network on initial load
+  useEffect(() => {
+    const initializeProvider = async () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        setIsMetaMaskInstalled(true);
+
+        // Check current network
+        try {
+          const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+          setIsOnCorrectNetwork(chainId === SEPOLIA_CHAIN_ID);
+        } catch (err) {
+          console.warn('Error checking network:', err);
+          setIsOnCorrectNetwork(false);
+        }
+
+        // Listen for chain changes
+        const handleChainChanged = (chainId) => {
+          setIsOnCorrectNetwork(chainId === SEPOLIA_CHAIN_ID);
+          // Reload the page to reinitialize contracts with new network
+          if (chainId === SEPOLIA_CHAIN_ID) {
+            window.location.reload();
+          }
+        };
+
+        // Listen for account changes
+        const handleAccountsChanged = (accounts) => {
+          if (accounts.length === 0) {
+            setAccount(null);
+          } else {
+            setAccount(accounts[0]);
+          }
+        };
+
+        window.ethereum.on('chainChanged', handleChainChanged);
+        window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+        // Cleanup listeners on unmount
+        return () => {
+          window.ethereum.removeListener('chainChanged', handleChainChanged);
+          window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        };
+      } else {
+        setIsMetaMaskInstalled(false);
+      }
+      setNetworkChecked(true);
+    };
+
+    initializeProvider();
+  }, []);
   const [selectedUser, setSelectedUser] = useState(null);
 
   const handleOpenProfile = async (wallet) => {
     if (!web3 || !contract || !profileContract) {
-      console.error('Web3 or contract not initialized.');
       return;
     }
 
@@ -65,16 +105,13 @@ export const StateContextProvider = ({ children }) => {
       return;
     }
 
-    try {
-      const onSepolia = await isOnSepolia();
-      if (!onSepolia) {
-        const switched = await ensureSepoliaNetwork();
-        if (!switched) {
-          console.warn('Please switch to Sepolia network.');
-          return;
-        }
-      }
+    // Don't attempt contract calls if not on correct network
+    if (!isOnCorrectNetwork) {
+      console.warn('Please switch to Sepolia network.');
+      return;
+    }
 
+    try {
       const accounts = await web3.eth.getAccounts();
       const activeAccount = account || accounts[0];
 
@@ -250,16 +287,13 @@ export const StateContextProvider = ({ children }) => {
       alert('Please connect your wallet first.');
       return;
     }
+    if (!isOnCorrectNetwork) {
+      alert('Please switch to Sepolia network to create posts.');
+      return;
+    }
     try {
       if (nftName.length > 0 && nftDesc.length > 0) {
         setLoading(true);
-
-        const onCorrectNetwork = await ensureSepoliaNetwork();
-        if (!onCorrectNetwork) {
-          alert('Please switch to Sepolia network to create posts.');
-          setLoading(false);
-          return;
-        }
         const accounts = await web3.eth.getAccounts();
         const dummyMeta = 'https://my-json-server.typicode.com/demo/nft/1';
         let imageUrl = '';
@@ -297,21 +331,17 @@ export const StateContextProvider = ({ children }) => {
   };
   const getAllNftPost = async () => {
     if (!web3 || !socialContract || !profileContract) {
-      console.warn('Web3 or contracts not initialized.');
+      return;
+    }
+
+    // Don't attempt contract calls if not on correct network
+    if (!isOnCorrectNetwork) {
+      console.warn('Please switch to Sepolia network to view posts.');
+      setAllPost([]);
       return;
     }
 
     try {
-      // Check if on Sepolia before making any calls
-      const onSepolia = await isOnSepolia();
-      if (!onSepolia) {
-        const switched = await ensureSepoliaNetwork();
-        if (!switched) {
-          console.warn('Please switch to Sepolia network to view posts.');
-          return;
-        }
-      }
-
       const accounts = await web3.eth.getAccounts();
       if (!accounts || accounts.length === 0) {
         console.warn('No account connected');
@@ -583,7 +613,7 @@ export const StateContextProvider = ({ children }) => {
   }
 
   const checkProfile = async () => {
-    if (!web3) {
+    if (!web3 || !isOnCorrectNetwork) {
       setIsProfileExists(false);
       return false;
     }
@@ -600,7 +630,6 @@ export const StateContextProvider = ({ children }) => {
         return true;
       }
     } catch (err) {
-      console.error('Error checking profile:', err);
       setIsProfileExists(false);
       return false;
     }
@@ -611,15 +640,12 @@ export const StateContextProvider = ({ children }) => {
       alert('Please connect your wallet first.');
       return;
     }
+    if (!isOnCorrectNetwork) {
+      alert('Please switch to Sepolia network.');
+      return;
+    }
     try {
-      const onCorrectNetwork = await ensureSepoliaNetwork();
-      if (!onCorrectNetwork) {
-        alert('Please switch to Sepolia network.');
-        return;
-      }
-
       const accounts = await web3.eth.getAccounts();
-
       const res = await profileContract.methods.setProfile(name, bio, username, image).send({ from: accounts[0] });
     } catch (err) {
       console.log(err);
@@ -630,15 +656,12 @@ export const StateContextProvider = ({ children }) => {
       alert('Please connect your wallet first.');
       return;
     }
+    if (!isOnCorrectNetwork) {
+      alert('Please switch to Sepolia network.');
+      return;
+    }
     try {
-      const onCorrectNetwork = await ensureSepoliaNetwork();
-      if (!onCorrectNetwork) {
-        alert('Please switch to Sepolia network.');
-        return;
-      }
-
       const accounts = await web3.eth.getAccounts();
-
       const res = await profileContract.methods.editProfile(name, username, bio, image).send({ from: accounts[0] });
       getProfile();
     } catch (err) {
@@ -647,20 +670,15 @@ export const StateContextProvider = ({ children }) => {
   };
   const getProfile = async (account) => {
     if (!web3 || !contract || !profileContract) {
-      console.error('Web3 or contract not initialized.');
+      return null;
+    }
+
+    // Don't attempt contract calls if not on correct network
+    if (!isOnCorrectNetwork) {
       return null;
     }
 
     try {
-      const onSepolia = await isOnSepolia();
-      if (!onSepolia) {
-        const switched = await ensureSepoliaNetwork();
-        if (!switched) {
-          console.warn('Please switch to Sepolia network.');
-          return null;
-        }
-      }
-
       const accounts = await web3.eth.getAccounts();
       const activeAccount = account || accounts[0];
 
@@ -690,20 +708,22 @@ export const StateContextProvider = ({ children }) => {
         return null;
       }
     } catch (err) {
-      console.error('Error fetching profile:', err);
-      console.error('Make sure you are connected to Sepolia testnet and the profile contract is deployed.');
+      // Silently handle errors when on wrong network or contract issues
       return null;
     }
   };
 
   const getUserProfile = async (address) => {
     if (!profileContract) {
-      console.warn('Profile contract not initialized');
       return null;
     }
 
     if (!address) {
-      console.warn('No address provided to getUserProfile');
+      return null;
+    }
+
+    // Don't attempt contract calls if not on correct network
+    if (!isOnCorrectNetwork) {
       return null;
     }
 
@@ -718,7 +738,7 @@ export const StateContextProvider = ({ children }) => {
       // Return null if profile is empty (user hasn't created profile yet)
       return null;
     } catch (err) {
-      console.error('getUserProfile error for address:', address, err);
+      // Silently handle errors when on wrong network or contract issues
       return null;
     }
   };
@@ -751,10 +771,10 @@ export const StateContextProvider = ({ children }) => {
     }
   };
   useEffect(() => {
-    if (account && web3 && socialContract && profileContract) {
+    if (account && web3 && socialContract && profileContract && isOnCorrectNetwork) {
       getAllNftPost();
     }
-  }, [account]);
+  }, [account, isOnCorrectNetwork]);
 
   return (
     <StateContext.Provider
@@ -804,6 +824,8 @@ export const StateContextProvider = ({ children }) => {
         handleOpenProfile,
         selectedUser,
         isMetaMaskInstalled,
+        isOnCorrectNetwork,
+        ensureSepoliaNetwork,
       }}
     >
       {children}
