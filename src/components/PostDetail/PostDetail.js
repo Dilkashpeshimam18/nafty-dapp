@@ -1,14 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { X, Heart } from 'lucide-react';
 import { useStateContext } from '../../context/index';
 
 const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
   const {
-    socialContract,
-    web3,
     fetchPostDetails,
     post,
-    setPost,
     commentOnNft,
     getAllNftComments,
     allComments,
@@ -19,7 +16,6 @@ const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
     listNft,
     unlistNft,
   } = useStateContext();
-  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [profile, setProfile] = useState();
   const [price, setPrice] = useState('');
@@ -28,6 +24,21 @@ const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
   const [loadingComment, setLoadingComment] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [loadingUnlist, setLoadingUnlist] = useState(false);
+
+  const getUserProfile = useCallback(async () => {
+    try {
+      const res = await getProfile(owner);
+      setProfile(res);
+    } catch (err) {
+      console.log(err);
+    }
+  }, [getProfile, owner]);
+
+  const handleOwnership = useCallback(async () => {
+    const ownershipResult = await checkOwnership(owner);
+    setIsOwner(ownershipResult);
+  }, [checkOwnership, owner]);
+
   useEffect(() => {
     if (isOpen && tokenId && owner) {
       fetchPostDetails(owner, tokenId);
@@ -35,16 +46,7 @@ const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
       getUserProfile();
       handleOwnership();
     }
-  }, [isOpen, tokenId, owner]);
-
-  const fetchComments = async () => {
-    try {
-      const allComments = await socialContract.methods.getComments(tokenId).call();
-      setComments(allComments);
-    } catch (err) {
-      console.error('Error fetching comments:', err);
-    }
-  };
+  }, [isOpen, tokenId, owner, fetchPostDetails, getAllNftComments, getUserProfile, handleOwnership]);
 
   const handleLike = async () => {
     try {
@@ -80,23 +82,6 @@ const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
     }
   };
 
-  const getUserProfile = async () => {
-    try {
-      const res = await getProfile(owner);
-      setProfile(res);
-    } catch (err) {
-      console.log(err);
-    }
-  };
-
-  const handleOwnership = async () => {
-    const isOwner = await checkOwnership(owner);
-    if (isOwner) {
-      setIsOwner(true);
-    } else {
-      setIsOwner(false);
-    }
-  };
 
   const handleListNft = async () => {
     try {
@@ -159,12 +144,13 @@ const PostDetailModal = ({ isOpen, onClose, owner, tokenId }) => {
         {/* Likes */}
         <button
           onClick={handleLike}
+          disabled={loadingLike}
           className={`flex items-center space-x-1 mb-4 ${
             post.liked ? 'text-red-500' : 'text-gray-400 hover:text-red-500'
-          }`}
+          } ${loadingLike ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Heart size={18} fill={post.liked ? 'red' : 'none'} stroke={post.liked ? 'red' : 'currentColor'} />{' '}
-          <span>{post.likes} Likes</span>
+          <span>{loadingLike ? 'Loading...' : `${post.likes} Likes`}</span>
         </button>
         {isOwner && (
           <div className="mb-4">

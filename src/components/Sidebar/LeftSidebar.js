@@ -15,7 +15,8 @@ const LeftSidebar = () => {
     if (userData?.wallet) {
       getAllUserNft(userData.wallet);
     }
-  }, [userData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userData?.wallet]);
 
   useEffect(() => {
     getProfile();
